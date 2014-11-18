@@ -47,7 +47,7 @@ class PG2PD
     # Read config.
     database_url = env!("DATABASE_URL")
     pagerduty_subdomain = env!("PAGERDUTY_SUBDOMAIN")
-    pagerduty_api_token = env!("PAGERDUTY_API_TOKEN")
+    pagerduty_api_token = env!("PAGERDUTY_API_KEY")
 
     # Establish API connection.
     self.api = Excon::Connection.new(
