@@ -1,6 +1,7 @@
 -- Show details about each incident that either originated form one of
 -- the team's services or alerted a member of the team (potentially
--- coming from other services).
+-- coming from other services). Note that team services and members are
+-- enumerated in the query.
 
 with team_notified_incident_ids as (
 select
