@@ -89,4 +89,5 @@ order by
   incidents.created_at desc
 ```
 
-See `schema.sql` for details of the data model.
+See `schema.sql` for details of the data model and `examples/` for
+example SQL queries.
