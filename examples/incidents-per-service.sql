@@ -1,4 +1,5 @@
 -- Count incidents per service over the last 28 days.
+
 select
   services.name,
   count(incidents.id)
