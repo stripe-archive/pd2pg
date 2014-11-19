@@ -20,10 +20,11 @@ from
   services
 where
   timezoned_incidents.service_id = services.id and
+  -- On-hours = Monday through Friday, 9:00a thorugh 6:00p.
   not (extract(dow from local_created_at) >= 1 and
        extract(dow from local_created_at) <= 5 and
        extract(hour from local_created_at) >= 9 and
-       extract(hour from local_created_at) <= 18)
+       extract(hour from local_created_at) <= 17)
 group by
   service
 order by
