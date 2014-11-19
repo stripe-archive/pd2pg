@@ -3,7 +3,7 @@
 
 select
   incidents.html_url as incident_url,
-  log_entries.created_at as notification_time,
+  log_entries.created_at at time zone 'America/Los_Angeles' as notification_time,
   log_entries.notification_type as notification_type,
   incidents.trigger_summary_subject,
   services.name as service_name
