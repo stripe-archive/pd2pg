@@ -1,4 +1,4 @@
--- Compute the number of off-hour incidents that occur off-hours
+-- Compute the number of off-hours incidents that occur off-hours
 -- (Pacific time) per service over the last 28 days.
 
 with timezoned_incidents as (
