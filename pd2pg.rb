@@ -229,8 +229,8 @@ class PG2PD
     refresh_bulk(:escalation_policies) { |ep| convert_escalation_policy(ep) }
     refresh_bulk(:users) { |u| convert_user(u) }
 
-    refresh_incremental(:log_entries, {"include[]" => "incident"}) { |le| convert_log_entry(le) }
     refresh_incremental(:incidents) { |i| convert_incident(i) }
+    refresh_incremental(:log_entries, {"include[]" => "incident"}) { |le| convert_log_entry(le) }
 
     log("refresh.finish")
   end
