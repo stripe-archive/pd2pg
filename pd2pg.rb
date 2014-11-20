@@ -113,13 +113,10 @@ class PG2PD
       incident_key: i["incident_key"],
       service_id: i["service"] && i["service"]["id"],
       escalation_policy_id: i["escalation_policy"] && i["escalation_policy"]["id"],
-      trigger_type: i["trigger_type"]
-    }.tap do |data|
-      if i["trigger_summary_data"]
-        data["trigger_summary_subject"] = i["trigger_summary_data"]["subject"]
-        data["trigger_summary_description"] = i["trigger_summary_data"]["description"]
-      end
-    end
+      trigger_type: i["trigger_type"],
+      trigger_summary_subject: i["trigger_summary_data"] && i["trigger_summary_data"]["subject"],
+      trigger_summary_description: i["trigger_summary_data"] && i["trigger_summary_data"]["description"]
+    }
   end
 
   # Refresh database state for the given table by fetching all relevant
