@@ -9,18 +9,18 @@ ENV["TZ"] = "UTC"
 
 class PG2PD
   # Largest page size allowed.
-  PAGINATION_LIMIT = 100
+  PAGINATION_LIMIT = (ENV["PAGINATION_LIMIT"] || 100).to_i
 
   # Rewind by ~1h when doing incremental updates, to ensure we don't
   # miss anything.
-  INCREMENTAL_BUFFER = 60*60
+  INCREMENTAL_BUFFER = (ENV["INCREMENTAL_BUFFER"] || 60*60).to_i
 
   # Apply incremental updates atomically for ~24 hour windows, instead
   # of trying to fetch all of history and apply it at once.
-  INCREMENTAL_WINDOW = 60*60*24
+  INCREMENTAL_WINDOW = (ENV["INCREMENTAL_WINDOW"] || 60*60*24).to_i
 
   # Earliest time PagerDuty data could be available.
-  PAGERDUTY_EPOCH = Time.parse("2009-01-01T00:00Z")
+  PAGERDUTY_EPOCH = Time.parse(ENV["PAGERDUTY_EPOCH"] || "2009-01-01T00:00Z")
 
   # Reads required config from environment variables.
   def env!(k)
