@@ -7,7 +7,7 @@ require "sequel"
 # Ensure all data processing and storage is in UTC.
 ENV["TZ"] = "UTC"
 
-class PG2PD
+class PD2PG
   # Largest page size allowed.
   PAGINATION_LIMIT = (ENV["PAGINATION_LIMIT"] || 100).to_i
 
@@ -236,4 +236,4 @@ class PG2PD
   end
 end
 
-PG2PD.new.refresh
+PD2PG.new.refresh
