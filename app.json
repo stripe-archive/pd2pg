@@ -1,0 +1,28 @@
+{
+  "name": "Pd2pg",
+  "description": "Pager duty info in a local postgres database",
+  "keywords": [
+    "small",
+    "sharp",
+    "tool"
+  ],
+  "addons": [
+    "heroku-postgresql:standard-0"
+  ],
+  "scripts": {
+    "postdeploy": "bundle exec bin/setup"
+  },
+  "env": {
+    "LANG": "en_US.UTF-8",
+    "PAGERDUTY_SUBDOMAIN": {
+      "description": "your-company subdomain",
+      "value": "",
+      "required": true
+    },
+    "PAGERDUTY_API_KEY": {
+      "description": "a read-only API key from https://<PAGERDUTY_SUBDOMAIN>.pagerduty.com/api_keys",
+      "value": "",
+      "required": true
+    }
+  }
+}
