@@ -2,8 +2,8 @@ GEM
   remote: https://rubygems.org/
   specs:
     excon (0.40.0)
-    pg (0.17.1)
-    sequel (4.16.0)
+    pg (0.18.4)
+    sequel (4.37.0)
 
 PLATFORMS
   ruby
@@ -12,3 +12,6 @@ DEPENDENCIES
   excon
   pg
   sequel
+
+BUNDLED WITH
+   1.12.1
