@@ -134,7 +134,11 @@ class PG2PD
       response = api.request(
         :method => :get,
         :path => "/api/v1/#{collection}",
-        :query => {"offset" => offset, "limit" => PAGINATION_LIMIT},
+        :query => {
+          "offset" => offset, 
+          "limit" => PAGINATION_LIMIT, 
+          "total" => true
+        },
         :expects => [200]
       )
       data = JSON.parse(response.body)
@@ -193,7 +197,8 @@ class PG2PD
             "since" => since,
             "until" => through,
             "offset" => offset,
-            "limit" => PAGINATION_LIMIT
+            "limit" => PAGINATION_LIMIT,
+            "total" => true
           }.merge(query_params),
           :expects => [200]
         )
