@@ -22,7 +22,7 @@ often as you'd like to refresh your database.
 You'll need the following config set in environment variables:
 
 * `PAGERDUTY_SUBDOMAIN`: e.g. `your-company` in `your-company.pagerduty.com`.
-* `PAGERDUTY_API_KEY`: a read-only API key from `https://<PAGERDUTY_SUBDOMAIN>.pagerduty.com/api_keys`.
+* `PAGERDUTY_API_KEY`: a read-only API key from `https://<PAGERDUTY_SUBDOMAIN>.pagerduty.com/api_keys`. Note that this key needs to be of the `v1 Legacy` flavor, not `v2 Current`.
 * `DATABASE_URL`: URL to a Postgres database, e.g. `postgres://127.0.0.1:5432/pagerduty`
 
 Perform a one-time schema load with:
