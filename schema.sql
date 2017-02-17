@@ -18,7 +18,11 @@ create table log_entries (
   incident_id varchar not null,
   agent_type varchar,
   agent_id varchar,
+  channel_id varchar,
+  channel_name varchar,
   channel_type varchar,
+  channel_user_id varchar,
+  channel_team_id varchar,
   user_id varchar,
   notification_type varchar,
   assigned_user_id varchar
@@ -40,6 +44,12 @@ create table users (
   id varchar primary key,
   name varchar not null,
   email varchar not null
+);
+
+create table slack_users (
+  id varchar primary key,
+  name varchar not null,
+  real_name varchar
 );
 
 -- Extension tablefunc enables crosstabs.

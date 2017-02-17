@@ -3,6 +3,7 @@ require "excon"
 require "time"
 require "pg"
 require "sequel"
+require "slack"
 
 # Ensure all data processing and storage is in UTC.
 ENV["TZ"] = "UTC"
@@ -96,7 +97,11 @@ class PG2PD
       incident_id: le["incident"]["id"],
       agent_type: le["agent"] && le["agent"]["type"],
       agent_id: le["agent"] && le["agent"]["id"],
+      channel_id: le["channel"] && le["channel"]["channel"] && le["channel"]["channel"]["id"],
+      channel_name: le["channel"] && le["channel"]["channel"] && le["channel"]["channel"]["name"],
       channel_type: le["channel"] && le["channel"]["type"],
+      channel_user_id: le["channel"] && le["channel"]["user"] && le["channel"]["user"]["id"],
+      channel_team_id: le["channel"] && le["channel"]["user"] && le["channel"]["team"]["id"],
       user_id: le["user"] && le["user"]["id"],
       notification_type: le["notification"] && le["notification"]["type"],
       assigned_user_id: le["assigned_user"] && le["assigned_user"]["id"]
@@ -119,6 +124,36 @@ class PG2PD
     }
   end
 
+  def refresh_slack_users()
+    slack_token = ENV["SLACK_TOKEN"]
+
+    if slack_token.to_s.empty?
+      log("refresh_slack_users.no_env SLACK_TOKEN environment variable is empty, skipping slack integration")
+      return
+    end
+
+    client = Slack::Client.new token: slack_token
+    records = client.users_list["members"].map{|m| {
+      id: m["id"],
+      name: m["name"],
+      real_name: m["real_name"]
+    }}
+
+    log("refresh_slack_users.update", total: records.length)
+    db.transaction do
+      table = db[:slack_users]
+      records.each do |record|
+        dataset = table.where(id: record[:id])
+        if dataset.empty?
+          table.insert(record)
+        else
+          dataset.update(record)
+        end
+      end
+    end
+  end
+
+
   # Refresh database state for the given table by fetching all relevant
   # values from the API. Yields each API value to a block that should
   # convert the API value to a DB record for subsequent insertion /
@@ -134,7 +169,11 @@ class PG2PD
       response = api.request(
         :method => :get,
         :path => "/api/v1/#{collection}",
-        :query => {"offset" => offset, "limit" => PAGINATION_LIMIT},
+        :query => {
+          "offset" => offset,
+          "limit" => PAGINATION_LIMIT,
+          "total" => true
+        },
         :expects => [200]
       )
       data = JSON.parse(response.body)
@@ -193,7 +232,8 @@ class PG2PD
             "since" => since,
             "until" => through,
             "offset" => offset,
-            "limit" => PAGINATION_LIMIT
+            "limit" => PAGINATION_LIMIT,
+            "total" => true
           }.merge(query_params),
           :expects => [200]
         )
@@ -224,6 +264,8 @@ class PG2PD
   # Refresh data for all tracked tables.
   def refresh
     log("refresh.start")
+
+    refresh_slack_users()
 
     refresh_bulk(:services) { |s| convert_service(s) }
     refresh_bulk(:escalation_policies) { |ep| convert_escalation_policy(ep) }
