@@ -70,11 +70,63 @@ class PG2PD
     }
   end
 
-  # Convert escalation policy API value into a DB record.
+  def convert_schedule(s)
+    refresh_bulk(:users,
+                 :user_schedule,
+                 "schedules/#{s["id"]}/users",
+                 { since: Time.now.strftime("%Y-%m-%d") },
+                 false) {
+      |u| convert_user_schedule(u, s["id"])
+    }
+    {
+      id: s["id"],
+      name: s["name"]
+    }
+  end
+
+  def convert_user_schedule(u, schedule_id)
+    {
+      id: "#{u["id"]}_#{schedule_id}",
+      user_id: u["id"],
+      schedule_id: schedule_id
+    }
+  end
+
+  # Convert escalation policy and escalation rules from API value into a DB record.
   def convert_escalation_policy(ep)
+    escalation_rules = []
+    escalation_rule_users = []
+    escalation_rule_schedules = []
+    ep["escalation_rules"].each.with_index do |er, i|
+      escalation_rules << {
+        id: er["id"],
+        escalation_policy_id: ep["id"],
+        escalation_delay_in_minutes: er["escalation_delay_in_minutes"],
+        level_index: i + 1
+      }
+      er["targets"].each do |t|
+        if t["type"] == "user"
+          escalation_rule_users << {
+            id: "#{er["id"]}_#{t["id"]}",
+            escalation_rule_id: er["id"],
+            user_id: t["id"]
+          }
+        else
+          escalation_rule_schedules << {
+            id: "#{er["id"]}_#{t["id"]}",
+            escalation_rule_id: er["id"],
+            schedule_id: t["id"]
+          }
+        end
+      end
+    end
+    database_update(:escalation_rules, escalation_rules)
+    database_update(:escalation_rule_users, escalation_rule_users)
+    database_update(:escalation_rule_schedules, escalation_rule_schedules)
     {
       id: ep["id"],
-      name: ep["name"]
+      name: ep["name"],
+      num_loops: ep["num_loops"]
     }
   end
 
@@ -123,32 +175,46 @@ class PG2PD
   # values from the API. Yields each API value to a block that should
   # convert the API value to a DB record for subsequent insertion /
   # update.
-  def refresh_bulk(collection)
+  def refresh_bulk(collection, table_name=nil, endpoint=nil, additional_headers={}, should_log=true)
     # Fetch all values from the API and apply the conversion block to
     # each, forming an in-memory array of DB-ready records.
+    if endpoint.nil?
+      endpoint = collection
+    end
+
+    if table_name.nil?
+      table_name = collection
+    end
+
     offset = 0
     total = nil
     records = []
     while !total || offset <= total
-      log("refresh_bulk.page", collection: collection, offset: offset, total: total || "?")
+      if should_log
+        log("refresh_bulk.page", table_name: table_name, offset: offset, total: total || "?")
+      end
       response = api.request(
         :method => :get,
-        :path => "/api/v1/#{collection}",
-        :query => {"offset" => offset, "limit" => PAGINATION_LIMIT},
+        :path => "/api/v1/#{endpoint}",
+        :query => {"offset" => offset, "limit" => PAGINATION_LIMIT}.merge(additional_headers),
         :expects => [200]
       )
       data = JSON.parse(response.body)
-      total = data["total"]
+      total = data["total"] || data[collection.to_s].length
       offset = offset + PAGINATION_LIMIT
       items = data[collection.to_s]
       records.concat(items.map { |i| yield(i) })
     end
+    if should_log
+      log("refresh_bulk.update", table_name: table_name, total: records.length)
+    end
+    database_update(table_name, records)
+  end
 
-    # Atomically update the DB, handling both data changes and
-    # insertions.
-    log("refresh_bulk.update", total: records.length)
+  def database_update(table_name, records)
+    # Atomically update the DB, handling both data changes and insertions.
     db.transaction do
-      table = db[collection]
+      table = db[table_name]
       records.each do |record|
         dataset = table.where(id: record[:id])
         if dataset.empty?
@@ -227,6 +293,7 @@ class PG2PD
 
     refresh_bulk(:services) { |s| convert_service(s) }
     refresh_bulk(:escalation_policies) { |ep| convert_escalation_policy(ep) }
+    refresh_bulk(:schedules) { |s| convert_schedule(s) }
     refresh_bulk(:users) { |u| convert_user(u) }
 
     refresh_incremental(:incidents) { |i| convert_incident(i) }

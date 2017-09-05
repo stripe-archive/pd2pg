@@ -33,6 +33,31 @@ create table services (
 
 create table escalation_policies (
   id varchar primary key,
+  name varchar not null,
+  num_loops int not null
+);
+
+create table escalation_rules (
+  id varchar primary key,
+  escalation_policy_id varchar not null,
+  escalation_delay_in_minutes int,
+  level_index int
+);
+
+create table escalation_rule_users (
+  id varchar primary key,
+  escalation_rule_id varchar not null,
+  user_id varchar
+);
+
+create table escalation_rule_schedules (
+  id varchar primary key,
+  escalation_rule_id varchar not null,
+  schedule_id varchar
+);
+
+create table schedules (
+  id varchar primary key,
   name varchar not null
 );
 
@@ -40,6 +65,12 @@ create table users (
   id varchar primary key,
   name varchar not null,
   email varchar not null
+);
+
+create table user_schedule (
+  id varchar primary key,
+  user_id varchar,
+  schedule_id varchar
 );
 
 -- Extension tablefunc enables crosstabs.
