@@ -70,19 +70,19 @@ class PG2PD
     }
   end
 
-  def convert_schedule(s)
-    refresh_bulk(:users,
-                 :user_schedule,
-                 "schedules/#{s["id"]}/users",
-                 { since: Time.now.strftime("%Y-%m-%d") },
-                 false) {
-      |u| convert_user_schedule(u, s["id"])
-    }
-    {
-      id: s["id"],
-      name: s["name"]
-    }
-  end
+def convert_schedule(s)
+  refresh_bulk(:users,
+               :user_schedule,
+               "schedules/#{s['id']}/users",
+               { since: Time.now.strftime('%Y-%m-%d') },
+               false) do |u|
+                 convert_user_schedule(u, s['id'])
+               end
+  {
+    id: s['id'],
+    name: s['name']
+  }
+end
 
   def convert_user_schedule(u, schedule_id)
     {
