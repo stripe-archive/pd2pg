@@ -61,82 +61,97 @@ class PG2PD
   end
 
   # Convert service API value into a DB record.
-  def convert_service(s)
-    {
-      id: s["id"],
-      name: s["name"],
-      status: s["status"],
-      type: s["type"]
-    }
+  def services_to_db(items)
+    columns = [:id, :name, :status, :type]
+    records = items.map do |i|
+      [i['id'],
+       i['name'],
+       i['status'],
+       i['type']]
+    end
+    database_update(:services, columns, records)
   end
 
-def convert_schedule(s)
-  refresh_bulk(:users,
-               :user_schedule,
-               "schedules/#{s['id']}/users",
-               { since: Time.now.strftime('%Y-%m-%d') },
-               false) do |u|
-                 convert_user_schedule(u, s['id'])
-               end
-  {
-    id: s['id'],
-    name: s['name']
-  }
-end
-
-  def convert_user_schedule(u, schedule_id)
-    {
-      id: "#{u["id"]}_#{schedule_id}",
-      user_id: u["id"],
-      schedule_id: schedule_id
-    }
+  def user_schedules_to_db(items, schedule_id)
+    columns = [:id, :user_id, :schedule_id]
+    records = items.map do |i|
+      ["#{i['id']}_#{schedule_id}",
+       i['id'],
+       schedule_id]
+    end
+    database_update(:user_schedule, columns, records)
   end
 
-  # Convert escalation policy and escalation rules from API value into a DB record.
-  def convert_escalation_policy(ep)
-    escalation_rules = []
-    escalation_rule_users = []
-    escalation_rule_schedules = []
-    ep["escalation_rules"].each.with_index do |er, i|
-      escalation_rules << {
-        id: er["id"],
-        escalation_policy_id: ep["id"],
-        escalation_delay_in_minutes: er["escalation_delay_in_minutes"],
-        level_index: i + 1
-      }
-      er["targets"].each do |t|
-        if t["type"] == "user"
-          escalation_rule_users << {
-            id: "#{er["id"]}_#{t["id"]}",
-            escalation_rule_id: er["id"],
-            user_id: t["id"]
-          }
-        else
-          escalation_rule_schedules << {
-            id: "#{er["id"]}_#{t["id"]}",
-            escalation_rule_id: er["id"],
-            schedule_id: t["id"]
-          }
+  def schedules_to_db(items)
+    items.each do |i|
+      user_schedules = get_bulk(:users,
+                                    "schedules/#{i['id']}/users",
+                                    { since: Time.now.strftime('%Y-%m-%d') },
+                                    false)
+      user_schedules_to_db(user_schedules, i['id'])
+    end
+    columns = [:id, :name]
+    records = items.map do |i|
+      [i['id'],
+       i['name']]
+    end
+    database_update(:schedules, columns, records)
+  end
+
+  def escalation_policies_to_db(items)
+    ep_columns = [:id, :name, :num_loops]
+    ep_records = items.map do |i|
+      [i['id'],
+       i['name'],
+       i['num_loops']]
+    end
+
+    er_columns = [:id, :escalation_policy_id, :escalation_delay_in_minutes, :level_index]
+    eru_columns = [:id, :escalation_rule_id, :user_id]
+    ers_columns = [:id, :escalation_rule_id, :schedule_id]
+    er_records = []
+    eru_records = []
+    ers_records = []
+    items.each do |ep|
+      ep['escalation_rules'].each.with_index do |er, i|
+
+        er_records << [
+          er['id'],
+          ep['id'],
+          er['escalation_delay_in_minutes'],
+          i + 1
+        ]
+        er['targets'].each do |t|
+          if t['type'] == 'user'
+            eru_records << [
+              "#{er['id']}_#{t['id']}",
+              er['id'],
+              t['id']
+            ]
+          else
+            ers_records << [
+              "#{er['id']}_#{t['id']}",
+              er['id'],
+              t['id']
+            ]
+          end
         end
       end
     end
-    database_update(:escalation_rules, escalation_rules)
-    database_update(:escalation_rule_users, escalation_rule_users)
-    database_update(:escalation_rule_schedules, escalation_rule_schedules)
-    {
-      id: ep["id"],
-      name: ep["name"],
-      num_loops: ep["num_loops"]
-    }
+    database_update(:escalation_rules, er_columns, er_records)
+    database_update(:escalation_rule_users, eru_columns, eru_records)
+    database_update(:escalation_rule_schedules, ers_columns, ers_records)
+    database_update(:escalation_policies, ep_columns, ep_records)
   end
 
-  # Convert user API value into a DB record.
-  def convert_user(u)
-    {
-      id: u["id"],
-      name: u["name"],
-      email: u["email"]
-    }
+  def users_to_db(items)
+    columns = [:id, :name, :email]
+    records = items.map do |i|
+      [i['id'],
+       i['name'],
+       i['email']]
+    end
+    database_update(:users, columns, records)
   end
 
   # Convert log entry API value into a DB record.
@@ -174,16 +189,12 @@ end
   # Refresh database state for the given table by fetching all relevant
   # values from the API. Yields each API value to a block that should
   # convert the API value to a DB record for subsequent insertion /
-  # update.
-  def refresh_bulk(collection, table_name=nil, endpoint=nil, additional_headers={}, should_log=true)
+  # update. TODO update comment
+  def get_bulk(collection, endpoint=nil, additional_headers={}, should_log=true)
     # Fetch all values from the API and apply the conversion block to
     # each, forming an in-memory array of DB-ready records.
     if endpoint.nil?
       endpoint = collection
-    end
-
-    if table_name.nil?
-      table_name = collection
     end
 
     offset = 0
@@ -191,37 +202,32 @@ end
     records = []
     while !total || offset <= total
       if should_log
-        log("refresh_bulk.page", table_name: table_name, offset: offset, total: total || "?")
+        log('get_bulk.page', collection: collection, offset: offset, total: total || '?')
       end
       response = api.request(
-        :method => :get,
-        :path => "/api/v1/#{endpoint}",
-        :query => {"offset" => offset, "limit" => PAGINATION_LIMIT}.merge(additional_headers),
-        :expects => [200]
+        method: :get,
+        path: "/api/v1/#{endpoint}",
+        query: {'offset' => offset, 'limit' => PAGINATION_LIMIT}.merge(additional_headers),
+        expects: [200]
       )
       data = JSON.parse(response.body)
       total = data["total"] || data[collection.to_s].length
-      offset = offset + PAGINATION_LIMIT
-      items = data[collection.to_s]
-      records.concat(items.map { |i| yield(i) })
+      offset += PAGINATION_LIMIT
+      records.concat(data[collection.to_s])
     end
     if should_log
-      log("refresh_bulk.update", table_name: table_name, total: records.length)
+      log('get_bulk.update', collection: collection, total: records.length)
     end
-    database_update(table_name, records)
+    return records
   end
 
-  def database_update(table_name, records)
+  def database_update(table_name, columns, records)
     # Atomically update the DB, handling both data changes and insertions.
     db.transaction do
       table = db[table_name]
+      table.delete()
       records.each do |record|
-        dataset = table.where(id: record[:id])
-        if dataset.empty?
-          table.insert(record)
-        else
-          dataset.update(record)
-        end
+        table.insert(record)
       end
     end
   end
@@ -253,19 +259,19 @@ end
       while !total || offset <= total
         log("refresh_incremental.page", collection: collection, offset: offset, total: total || "?")
         response = api.request(
-          :method => :get,
-          :path => "/api/v1/#{collection}",
-          :query => {
-            "since" => since,
-            "until" => through,
-            "offset" => offset,
-            "limit" => PAGINATION_LIMIT
+          method: :get,
+          path: "/api/v1/#{collection}",
+          query: {
+            since: since,
+            until: through,
+            offset: offset,
+            limit: PAGINATION_LIMIT
           }.merge(query_params),
-          :expects => [200]
+          expects: [200]
         )
         data = JSON.parse(response.body)
         total = data["total"]
-        offset = offset + PAGINATION_LIMIT
+        offset += PAGINATION_LIMIT
         items = data[collection.to_s]
         records.concat(items.map { |i| yield(i) })
       end
@@ -291,13 +297,13 @@ end
   def refresh
     log("refresh.start")
 
-    refresh_bulk(:services) { |s| convert_service(s) }
-    refresh_bulk(:escalation_policies) { |ep| convert_escalation_policy(ep) }
-    refresh_bulk(:schedules) { |s| convert_schedule(s) }
-    refresh_bulk(:users) { |u| convert_user(u) }
+    services_to_db(get_bulk(:services))
+    escalation_policies_to_db(get_bulk(:escalation_policies))
+    schedules_to_db(get_bulk(:schedules))
+    users_to_db(get_bulk(:users))
 
     refresh_incremental(:incidents) { |i| convert_incident(i) }
-    refresh_incremental(:log_entries, {"include[]" => "incident"}) { |le| convert_log_entry(le) }
+    refresh_incremental(:log_entries, "include[]" => "incident") { |le| convert_log_entry(le) }
 
     log("refresh.finish")
   end
