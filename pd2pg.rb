@@ -60,7 +60,7 @@ class PG2PD
     self.db = Sequel.connect(database_url)
   end
 
-  # Convert service API value into a DB record.
+  # Send all service records from Pagerduty to database.
   def services_to_db(items)
     columns = [:id, :name, :status, :type]
     records = items.map do |i|
@@ -72,6 +72,7 @@ class PG2PD
     database_update(:services, columns, records)
   end
 
+  # Adds users to user_schedule table associated with given schedule.
   def user_schedules_to_db(items, schedule_id)
     columns = [:id, :user_id, :schedule_id]
     records = items.map do |i|
@@ -82,12 +83,13 @@ class PG2PD
     database_update(:user_schedule, columns, records)
   end
 
+  # Send all schedule records from Pagerduty to database.
   def schedules_to_db(items)
     items.each do |i|
       user_schedules = get_bulk(:users,
-                                    "schedules/#{i['id']}/users",
-                                    { since: Time.now.strftime('%Y-%m-%d') },
-                                    false)
+                                "schedules/#{i['id']}/users",
+                                { since: Time.now.strftime('%Y-%m-%d') },
+                                false)
       user_schedules_to_db(user_schedules, i['id'])
     end
     columns = [:id, :name]
@@ -98,6 +100,7 @@ class PG2PD
     database_update(:schedules, columns, records)
   end
 
+  # Send all escalation policy records from Pagerduty to database.
   def escalation_policies_to_db(items)
     ep_columns = [:id, :name, :num_loops]
     ep_records = items.map do |i|
@@ -144,6 +147,7 @@ class PG2PD
     database_update(:escalation_policies, ep_columns, ep_records)
   end
 
+  # Send all user records to database.
   def users_to_db(items)
     columns = [:id, :name, :email]
     records = items.map do |i|
@@ -186,13 +190,8 @@ class PG2PD
     }
   end
 
-  # Refresh database state for the given table by fetching all relevant
-  # values from the API. Yields each API value to a block that should
-  # convert the API value to a DB record for subsequent insertion /
-  # update. TODO update comment
+  # Returns list of raw values from the database for the given collection or endpoint.
   def get_bulk(collection, endpoint=nil, additional_headers={}, should_log=true)
-    # Fetch all values from the API and apply the conversion block to
-    # each, forming an in-memory array of DB-ready records.
     if endpoint.nil?
       endpoint = collection
     end
