@@ -1,0 +1,12 @@
+#!/usr/bin/env ruby
+require "sequel"
+done = false
+while !done
+  begin
+    db = Sequel.connect(ENV['DATABASE_URL'])
+    db.run(File.read('schema.sql'))
+    done = true
+  rescue Sequel::DatabaseConnectionError => e
+    puts "DB is not ready"
+  end
+end
