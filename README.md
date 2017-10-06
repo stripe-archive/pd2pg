@@ -34,7 +34,7 @@ $ psql $DATABASE_URL < schema.sql
 Then refresh the database as often as desired with:
 
 ```
-$ bundle exec ruby pd2pg.rb
+$ bundle exec pd2pg
 ```
 
 ## Querying
