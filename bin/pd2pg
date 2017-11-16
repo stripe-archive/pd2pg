@@ -75,25 +75,28 @@ class PG2PD
   end
 
   # Adds users to user_schedule table associated with given schedule.
-  def user_schedules_to_db(items, schedule_id)
+  def user_schedules_to_db(schedule_items)
     columns = [:id, :user_id, :schedule_id]
-    records = items.map do |i|
-      ["#{i['id']}_#{schedule_id}",
-       i['id'],
-       schedule_id]
+    all_records = []
+    schedule_items.each do |s|
+      users = get_bulk(:users,
+                                "schedules/#{s['id']}/users",
+                                { since: Time.now.strftime('%Y-%m-%d') },
+                                false)
+      records = users.map do |u|
+        ["#{u['id']}_#{s['id']}",
+         u['id'],
+         s['id']]
+      end
+      all_records.concat(records)
     end
-    database_update(:user_schedule, columns, records)
+    database_update(:user_schedule, columns, all_records)
   end
 
   # Send all schedule records from Pagerduty to database.
   def schedules_to_db(items)
-    items.each do |i|
-      user_schedules = get_bulk(:users,
-                                "schedules/#{i['id']}/users",
-                                { since: Time.now.strftime('%Y-%m-%d') },
-                                false)
-      user_schedules_to_db(user_schedules, i['id'])
-    end
+    user_schedules_to_db(items)
+
     columns = [:id, :name]
     records = items.map do |i|
       [i['id'],
