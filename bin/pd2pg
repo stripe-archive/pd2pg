@@ -48,15 +48,17 @@ class PG2PD
   def initialize
     # Read config.
     database_url = env!("DATABASE_URL")
-    pagerduty_subdomain = env!("PAGERDUTY_SUBDOMAIN")
     pagerduty_api_token = env!("PAGERDUTY_API_KEY")
 
     # Establish API connection.
     self.api = Excon::Connection.new(
       :scheme => "https",
-      :host => "#{pagerduty_subdomain}.pagerduty.com",
+      :host => "api.pagerduty.com",
       :port => 443,
-      :headers => {"Authorization" => "Token token=#{pagerduty_api_token}"})
+      :headers => {
+        "Authorization" => "Token token=#{pagerduty_api_token}",
+        "Accept" => "application/vnd.pagerduty+json;version=2"
+      })
 
     # Establish DB connection.
     self.db = Sequel.connect(database_url)
@@ -181,7 +183,7 @@ class PG2PD
     {
       id: i["id"],
       incident_number: i["incident_number"],
-      created_at: i["created_on"],
+      created_at: i["created_at"],
       html_url: i["html_url"],
       incident_key: i["incident_key"],
       service_id: i["service"] && i["service"]["id"],
@@ -207,8 +209,12 @@ class PG2PD
       end
       response = api.request(
         method: :get,
-        path: "/api/v1/#{endpoint}",
-        query: {'offset' => offset, 'limit' => PAGINATION_LIMIT}.merge(additional_headers),
+        path: "/#{endpoint}",
+        query: {
+          'offset' => offset,
+          'limit' => PAGINATION_LIMIT,
+          'total' => 'true'
+        }.merge(additional_headers),
         expects: [200]
       )
       data = JSON.parse(response.body)
@@ -261,12 +267,13 @@ class PG2PD
         log("refresh_incremental.page", collection: collection, offset: offset, total: total || "?")
         response = api.request(
           method: :get,
-          path: "/api/v1/#{collection}",
+          path: "/#{collection}",
           query: {
-            since: since,
-            until: through,
+            since: since.iso8601,
+            until: through.iso8601,
             offset: offset,
-            limit: PAGINATION_LIMIT
+            limit: PAGINATION_LIMIT,
+            total: 'true'
           }.merge(query_params),
           expects: [200]
         )
