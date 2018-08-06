@@ -2,8 +2,6 @@
 
 require "json"
 require "excon"
-require "time"
-require "pg"
 require "sequel"
 
 # Ensure all data processing and storage is in UTC.
@@ -48,15 +46,17 @@ class PG2PD
   def initialize
     # Read config.
     database_url = env!("DATABASE_URL")
-    pagerduty_subdomain = env!("PAGERDUTY_SUBDOMAIN")
     pagerduty_api_token = env!("PAGERDUTY_API_KEY")
 
     # Establish API connection.
     self.api = Excon::Connection.new(
       :scheme => "https",
-      :host => "#{pagerduty_subdomain}.pagerduty.com",
+      :host => "api.pagerduty.com",
       :port => 443,
-      :headers => {"Authorization" => "Token token=#{pagerduty_api_token}"})
+      :headers => {
+          "Authorization" => "Token token=#{pagerduty_api_token}",
+          "Accept" => "application/vnd.pagerduty+json;version=2"
+      })
 
     # Establish DB connection.
     self.db = Sequel.connect(database_url)
@@ -181,14 +181,16 @@ class PG2PD
     {
       id: i["id"],
       incident_number: i["incident_number"],
-      created_at: i["created_on"],
+      created_at: i["created_at"],
       html_url: i["html_url"],
       incident_key: i["incident_key"],
       service_id: i["service"] && i["service"]["id"],
       escalation_policy_id: i["escalation_policy"] && i["escalation_policy"]["id"],
-      trigger_type: i["trigger_type"],
-      trigger_summary_subject: i["trigger_summary_data"] && i["trigger_summary_data"]["subject"],
-      trigger_summary_description: i["trigger_summary_data"] && i["trigger_summary_data"]["description"]
+      trigger_summary_subject: i["summary"],
+      trigger_summary_description: i["description"],
+      # this column is no longer supported in Pagerduty's v2 API
+      # we're leaving it in for backwards compatibility.
+      trigger_type: "DEPRECATED"
     }
   end
 
@@ -201,21 +203,26 @@ class PG2PD
     offset = 0
     total = nil
     records = []
-    while !total || offset <= total
+    loop {
       if should_log
         log('get_bulk.page', collection: collection, offset: offset, total: total || '?')
       end
       response = api.request(
         method: :get,
-        path: "/api/v1/#{endpoint}",
-        query: {'offset' => offset, 'limit' => PAGINATION_LIMIT}.merge(additional_headers),
+        path: "/#{endpoint}",
+        query: {
+            'total' => true,
+            'offset' => offset,
+            'limit' => PAGINATION_LIMIT
+        }.merge(additional_headers),
         expects: [200]
       )
       data = JSON.parse(response.body)
       total = data["total"] || data[collection.to_s].length
       offset += PAGINATION_LIMIT
       records.concat(data[collection.to_s])
-    end
+      break if !data["more"]
+    }
     if should_log
       log('get_bulk.update', collection: collection, total: records.length)
     end
@@ -257,12 +264,13 @@ class PG2PD
       offset = 0
       total = nil
       records = []
-      while !total || offset <= total
-        log("refresh_incremental.page", collection: collection, offset: offset, total: total || "?")
+      loop {
+        log("refresh_incremental.page", collection: collection, since: since, offset: offset, total: total || "?")
         response = api.request(
           method: :get,
-          path: "/api/v1/#{collection}",
+          path: "/#{collection}",
           query: {
+            total: true,
             since: since,
             until: through,
             offset: offset,
@@ -275,7 +283,8 @@ class PG2PD
         offset += PAGINATION_LIMIT
         items = data[collection.to_s]
         records.concat(items.map { |i| yield(i) })
-      end
+        break if !data["more"]
+      }
 
       # Atomically update the DB by inserting all novel records.
       if !records.empty?
