@@ -203,21 +203,26 @@ class PG2PD
     offset = 0
     total = nil
     records = []
-    while !total || offset <= total
+    loop {
       if should_log
         log('get_bulk.page', collection: collection, offset: offset, total: total || '?')
       end
       response = api.request(
         method: :get,
         path: "/#{endpoint}",
-        query: {'total' => true, 'offset' => offset, 'limit' => PAGINATION_LIMIT}.merge(additional_headers),
+        query: {
+            'total' => true,
+            'offset' => offset,
+            'limit' => PAGINATION_LIMIT
+        }.merge(additional_headers),
         expects: [200]
       )
       data = JSON.parse(response.body)
       total = data["total"] || data[collection.to_s].length
       offset += PAGINATION_LIMIT
       records.concat(data[collection.to_s])
-    end
+      break if !data["more"]
+    }
     if should_log
       log('get_bulk.update', collection: collection, total: records.length)
     end
@@ -259,8 +264,7 @@ class PG2PD
       offset = 0
       total = nil
       records = []
-      more = true
-      while more
+      loop {
         log("refresh_incremental.page", collection: collection, since: since, offset: offset, total: total || "?")
         response = api.request(
           method: :get,
@@ -276,11 +280,11 @@ class PG2PD
         )
         data = JSON.parse(response.body)
         total = data["total"]
-        more = data["more"]
         offset += PAGINATION_LIMIT
         items = data[collection.to_s]
         records.concat(items.map { |i| yield(i) })
-      end
+        break if !data["more"]
+      }
 
       # Atomically update the DB by inserting all novel records.
       if !records.empty?
