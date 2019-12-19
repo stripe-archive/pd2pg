@@ -14,7 +14,7 @@ Gem::Specification.new do |gem|
 
   gem.require_paths = ['lib']
 
-  gem.add_dependency 'excon', '~> 0.54'
+  gem.add_dependency "excon", ">= 0.71.0"
   gem.add_dependency 'pg', '~> 0.18'
   gem.add_dependency 'sequel', '~> 4'
 end
