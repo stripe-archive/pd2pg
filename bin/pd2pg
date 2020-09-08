@@ -20,7 +20,7 @@ class PG2PD
   INCREMENTAL_WINDOW = 60*60*24
 
   # Earliest time PagerDuty data could be available.
-  PAGERDUTY_EPOCH = Time.parse("2009-01-01T00:00Z")
+  PAGERDUTY_EPOCH = Time.parse("2018-01-01T00:00Z")
 
   # Reads required config from environment variables.
   def env!(k)
@@ -64,12 +64,13 @@ class PG2PD
 
   # Send all service records from Pagerduty to database.
   def services_to_db(items)
-    columns = [:id, :name, :status, :type]
+    columns = [:id, :name, :status, :type, :escalation_id]
     records = items.map do |i|
       [i['id'],
        i['name'],
        i['status'],
-       i['type']]
+       i['type'],
+       i['escalation_policy']['id']]
     end
     database_replace(:services, columns, records)
   end
