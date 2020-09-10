@@ -64,12 +64,13 @@ class PG2PD
 
   # Send all service records from Pagerduty to database.
   def services_to_db(items)
-    columns = [:id, :name, :status, :type]
+    columns = [:id, :name, :status, :type, :escalation_id]
     records = items.map do |i|
       [i['id'],
        i['name'],
        i['status'],
-       i['type']]
+       i['type'],
+       i['escalation_policy']['id']]
     end
     database_replace(:services, columns, records)
   end

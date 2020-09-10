@@ -28,7 +28,8 @@ create table services (
   id varchar primary key,
   name varchar not null,
   status varchar not null,
-  type varchar not null
+  type varchar not null,
+  escalation_id varchar
 );
 
 create table escalation_policies (
